@@ -3,7 +3,6 @@ package com.aajumaharjan.pluginloader;
 import com.aajumaharjan.pluginloader.build.MavenBuilder;
 import com.aajumaharjan.pluginloader.fetch.GitFeatureFetcher;
 import com.aajumaharjan.pluginloader.load.JarClassLoader;
-import com.aajumaharjan.pluginloader.load.PackageBeanRegistrar;
 import com.aajumaharjan.pluginloader.model.FeatureConfig;
 import com.aajumaharjan.pluginloader.config.PluginLoaderProperties;
 import lombok.extern.slf4j.Slf4j;
@@ -94,7 +93,7 @@ public class FeatureManager implements ApplicationListener<ContextClosedEvent> {
                 File repoDir = featureFetcher.fetchRepository(feature);
 
                 // Try to copy compiled classes into client's target/classes (makes impl classes visible to parent classloader).
-                boolean copied = copyCompiledClassesToClient(repoDir.toPath());
+                boolean copied = copyCompiledClassesToClient(repoDir.toPath(), feature.getPackages());
                 if (copied) {
                     // Only packages are provided in YAML; use package scanning (no feature.getBeanClasses())
                     List<String> packages = feature.getPackages() == null ? Collections.emptyList() : feature.getPackages();
@@ -167,8 +166,8 @@ public class FeatureManager implements ApplicationListener<ContextClosedEvent> {
         throw new RuntimeException("Cannot resolve jar path: " + jarPath);
     }
 
-    // Try to copy compiled classes from repo/target/classes -> client/target/classes
-    private boolean copyCompiledClassesToClient(Path repoDir) {
+    // Try to copy compiled classes from repo/target/classes -> client/target/classes, scoped to requested packages when provided
+    private boolean copyCompiledClassesToClient(Path repoDir, List<String> requestedPackages) {
         try {
             Path repoClasses = repoDir.resolve("target").resolve("classes");
             if (!Files.exists(repoClasses)) {
@@ -178,9 +177,11 @@ public class FeatureManager implements ApplicationListener<ContextClosedEvent> {
 
             Path clientClasses = Path.of(System.getProperty("user.dir")).resolve("target").resolve("classes");
             Files.createDirectories(clientClasses);
+            Set<String> packageFilters = normalizePackages(requestedPackages);
 
             try (Stream<Path> paths = Files.walk(repoClasses)) {
                 paths.filter(p -> p.toString().endsWith(".class"))
+                        .filter(p -> shouldCopyClass(repoClasses, p, packageFilters))
                         .forEach(source -> {
                             try {
                                 Path relative = repoClasses.relativize(source);
@@ -198,6 +199,34 @@ public class FeatureManager implements ApplicationListener<ContextClosedEvent> {
             log.warn("copyCompiledClassesToClient failed: {}", e.getMessage());
             return false;
         }
+    }
+
+    private boolean shouldCopyClass(Path classesRoot, Path classFile, Set<String> packageFilters) {
+        if (packageFilters.isEmpty()) {
+            return true;
+        }
+        Path relative = classesRoot.relativize(classFile);
+        Path parent = relative.getParent();
+        String pkg = parent == null ? "" : parent.toString().replace(File.separatorChar, '.');
+        for (String allowed : packageFilters) {
+            if (pkg.equals(allowed) || pkg.startsWith(allowed + ".")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private Set<String> normalizePackages(List<String> packages) {
+        if (packages == null || packages.isEmpty()) {
+            return Collections.emptySet();
+        }
+        Set<String> normalized = new HashSet<>();
+        for (String pkg : packages) {
+            if (pkg != null && !pkg.isBlank()) {
+                normalized.add(pkg.trim());
+            }
+        }
+        return normalized;
     }
 
     // Expose plugin beans (interfaces visible to parent) as proxies in parent context
@@ -269,14 +298,15 @@ public class FeatureManager implements ApplicationListener<ContextClosedEvent> {
 
         AnnotationConfigUtils.registerAnnotationConfigProcessors(child.getDefaultListableBeanFactory());
 
-        if (packagesToScan != null && !packagesToScan.isEmpty()) {
+        boolean scannedPackages = packagesToScan != null && !packagesToScan.isEmpty();
+        if (scannedPackages) {
             ClassPathBeanDefinitionScanner scanner = new ClassPathBeanDefinitionScanner(child);
             scanner.setResourceLoader(new DefaultResourceLoader(featureLoader));
             scanner.scan(packagesToScan.toArray(new String[0]));
         }
 
         // register explicit bean classes by name (if any)
-        if (beanClassNames != null && !beanClassNames.isEmpty()) {
+        if (beanClassNames != null && !beanClassNames.isEmpty() && !scannedPackages) {
             for (String fqcn : beanClassNames) {
                 try {
                     Class<?> beanClass = Class.forName(fqcn, true, featureLoader);

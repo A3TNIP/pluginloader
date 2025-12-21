@@ -10,7 +10,7 @@
     </parent>
     <groupId>com.aajumaharjan</groupId>
     <artifactId>pluginloader</artifactId>
-    <version>0.0.20-SNAPSHOT</version>
+    <version>0.0.24-SNAPSHOT</version>
     <name>pluginloader</name>
     <description>pluginloader</description>
     <url/>

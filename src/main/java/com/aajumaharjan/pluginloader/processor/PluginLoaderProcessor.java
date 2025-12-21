@@ -1,7 +1,6 @@
 package com.aajumaharjan.pluginloader.processor;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jgit.api.Git;
 
@@ -10,8 +9,6 @@ import javax.lang.model.SourceVersion;
 import javax.lang.model.element.TypeElement;
 import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
-import javax.tools.StandardLocation;
-import java.io.File;
 import java.io.IOException;
 import java.io.Writer;
 import java.lang.reflect.Constructor;
@@ -24,18 +21,12 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
-
-
-
 @SupportedAnnotationTypes("*")
 @SupportedSourceVersion(SourceVersion.RELEASE_17)
 @Slf4j
 public class PluginLoaderProcessor extends AbstractProcessor {
     private static final Pattern PACKAGE_PATTERN = Pattern.compile("package\\s+([\\w\\.]+)\\s*;");
     private static final Pattern CLASS_PATTERN = Pattern.compile("\\b(class|interface|enum)\\s+([A-Za-z_][A-Za-z0-9_]*)\\b");
-    private static final List<String> STEREOTYPES = List.of(
-            "@Component", "@Service", "@Repository", "@Controller", "@RestController", "@Configuration", "@Bean"
-    );
 
     private final Set<String> processedRepos = Collections.synchronizedSet(new HashSet<>());
     private final Set<String> generatedTypes = Collections.synchronizedSet(new HashSet<>());
@@ -116,16 +107,8 @@ public class PluginLoaderProcessor extends AbstractProcessor {
                 String branch = firstString(feature, "branch");
                 if (branch == null) branch = "main";
 
-                String pkgHint = null;
-                Object pkgObj = feature.get("package");
-                if (pkgObj == null) pkgObj = feature.get("packages");
-                if (pkgObj instanceof String) {
-                    pkgHint = (String) pkgObj;
-                } else if (pkgObj instanceof List) {
-                    @SuppressWarnings("unchecked")
-                    List<Object> pkgList = (List<Object>) pkgObj;
-                    pkgHint = pkgList.stream().map(Object::toString).filter(s -> !s.isBlank()).reduce((a, b) -> a + "," + b).orElse(null);
-                }
+                Set<String> configuredPackages = readConfiguredPackages(feature);
+                String pkgHint = configuredPackages.stream().findFirst().orElse(null);
 
                 processingEnv.getMessager().printMessage(Diagnostic.Kind.NOTE, "Cloning feature from " + repoUrl);
                 Path tempDir = Files.createTempDirectory("feature-");
@@ -142,10 +125,11 @@ public class PluginLoaderProcessor extends AbstractProcessor {
                                     .forEach(p -> {
                                         try {
                                             String content = Files.readString(p, StandardCharsets.UTF_8);
-                                            boolean hasStereo = STEREOTYPES.stream().anyMatch(content::contains);
-                                            if (!hasStereo) return;
-
                                             String pkg = extractGroup(PACKAGE_PATTERN, content, 1);
+                                            if (!configuredPackages.isEmpty() && !isPackageAllowed(pkg, configuredPackages)) {
+                                                return;
+                                            }
+
                                             String className = extractGroup(CLASS_PATTERN, content, 2);
                                             if (className == null) return;
 
@@ -178,8 +162,9 @@ public class PluginLoaderProcessor extends AbstractProcessor {
                         processingEnv.getMessager().printMessage(Diagnostic.Kind.NOTE, "No src/main/java in cloned repo; scanning skipped");
                     }
 
-                    if (pkgHint != null && !pkgHint.isBlank()) {
-                        packages.addAll(Arrays.asList(pkgHint.split(",")));
+                    if (!configuredPackages.isEmpty()) {
+                        packages.clear();
+                        packages.addAll(configuredPackages);
                     }
 
                     String featureName = deriveFeatureName(repoUrl, pkgHint, beanClasses);
@@ -261,6 +246,38 @@ public class PluginLoaderProcessor extends AbstractProcessor {
             processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR, "PluginLoaderProcessor failure: " + e.toString());
             return false;
         }
+    }
+
+    private static Set<String> readConfiguredPackages(Map<String, Object> feature) {
+        Object pkgObj = feature.get("packages");
+        if (pkgObj == null) {
+            pkgObj = feature.get("package");
+        }
+
+        Set<String> packages = new LinkedHashSet<>();
+        if (pkgObj instanceof String str && !str.isBlank()) {
+            packages.add(str.trim());
+        } else if (pkgObj instanceof List<?> list) {
+            list.stream()
+                    .filter(Objects::nonNull)
+                    .map(Object::toString)
+                    .map(String::trim)
+                    .filter(s -> !s.isBlank())
+                    .forEach(packages::add);
+        }
+        return packages;
+    }
+
+    private static boolean isPackageAllowed(String pkg, Set<String> configuredPackages) {
+        if (pkg == null || configuredPackages.isEmpty()) {
+            return false;
+        }
+        for (String configured : configuredPackages) {
+            if (pkg.equals(configured) || pkg.startsWith(configured + ".")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // Run 'mvn -DskipTests clean package' in repoDir, find produced jar and copy to client target/pluginloader/features/<featureName>.jar
