@@ -28,6 +28,7 @@ public class PluginLoaderProcessor extends AbstractProcessor {
     private static final Pattern PACKAGE_PATTERN = Pattern.compile("package\\s+([\\w\\.]+)\\s*;");
     private static final Pattern CLASS_PATTERN = Pattern.compile("\\b(class|interface|enum)\\s+([A-Za-z_][A-Za-z0-9_]*)\\b");
 
+    private volatile boolean processedOnce = false;
     private final Set<String> processedRepos = Collections.synchronizedSet(new HashSet<>());
     private final Set<String> generatedTypes = Collections.synchronizedSet(new HashSet<>());
 
@@ -36,6 +37,10 @@ public class PluginLoaderProcessor extends AbstractProcessor {
 
     @Override
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
+        if (roundEnv.processingOver() || processedOnce) {
+            return false;
+        }
+        processedOnce = true;
         processingEnv.getMessager().printMessage(Diagnostic.Kind.NOTE, "[PluginLoaderProcessor] running");
 
         try {
