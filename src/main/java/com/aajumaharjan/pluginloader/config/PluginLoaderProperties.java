@@ -11,6 +11,5 @@ import java.util.List;
 @Getter
 @Setter
 public class PluginLoaderProperties {
-    private boolean enabled = false;
     private List<FeatureConfig> features;
 }
