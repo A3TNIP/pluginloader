@@ -10,11 +10,9 @@ import java.util.stream.Stream;
 
 class FeatureJarBuilder {
 
-    Optional<Path> buildAndCopyArtifact(Path repoDir, String featureName, Messager messager) {
+    public Optional<Path> buildAndCopyArtifact(Path repoDir, String featureName, Messager messager) {
         try {
-            ProcessBuilder pb = new ProcessBuilder("mvn", "-DskipTests", "clean", "package");
-            pb.directory(repoDir.toFile());
-            pb.redirectErrorStream(true);
+            ProcessBuilder pb = createProcessBuilder(repoDir);
             Process p = pb.start();
 
             try (var isr = new java.io.InputStreamReader(p.getInputStream());
@@ -68,5 +66,12 @@ class FeatureJarBuilder {
             messager.printMessage(Diagnostic.Kind.NOTE, "buildAndCopyArtifact error: " + e);
             return Optional.empty();
         }
+    }
+
+    public ProcessBuilder createProcessBuilder(Path repoDir) {
+        ProcessBuilder pb = new ProcessBuilder("mvn", "-DskipTests", "clean", "package");
+        pb.directory(repoDir.toFile());
+        pb.redirectErrorStream(true);
+        return pb;
     }
 }

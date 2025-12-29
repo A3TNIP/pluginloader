@@ -66,10 +66,10 @@ public class PluginLoaderProcessor extends AbstractProcessor {
 
                     String pkgHint = packages.stream().findFirst().orElse(null);
                     String featureName = featureNameResolver.deriveFeatureName(feature.repository(), pkgHint, scanResult.beanClasses());
-                    String descriptorFqcn = descriptorGenerator.descriptorFqcn(featureName);
+                    String descriptorName = descriptorGenerator.getDescriptorName(featureName);
 
-                    if (!generatedTypes.add(descriptorFqcn)) {
-                        processingEnv.getMessager().printMessage(Diagnostic.Kind.NOTE, "Descriptor " + descriptorFqcn + " already generated in this run - skipping");
+                    if (!generatedTypes.add(descriptorName)) {
+                        processingEnv.getMessager().printMessage(Diagnostic.Kind.NOTE, "Descriptor " + descriptorName + " already generated in this run - skipping");
                         continue;
                     }
 

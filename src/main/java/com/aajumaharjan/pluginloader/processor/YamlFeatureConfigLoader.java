@@ -11,7 +11,7 @@ import java.util.*;
 
 class YamlFeatureConfigLoader {
 
-    List<FeatureRequest> load(Path yamlPath, Messager messager) {
+    public List<FeatureRequest> load(Path yamlPath, Messager messager) {
         try {
             if (!Files.exists(yamlPath)) {
                 messager.printMessage(Diagnostic.Kind.NOTE, "No application.yml found at " + yamlPath);

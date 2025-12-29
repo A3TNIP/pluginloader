@@ -108,29 +108,29 @@ public class FeatureManager implements ApplicationListener<ContextClosedEvent> {
 
         var beanFactory = (org.springframework.beans.factory.support.DefaultListableBeanFactory) parent.getBeanFactory();
 
-        for (String fqcn : beanClassNames) {
+        for (String fullyQualifiedClassName : beanClassNames) {
             try {
                 // Try to load the class/interface with the parent classloader
-                Class<?> cls = Class.forName(fqcn, true, parentCl);
+                Class<?> clazz = Class.forName(fullyQualifiedClassName, true, parentCl);
 
                 // Obtain implementation from child context
                 Object childBean = null;
                 try {
-                    childBean = child.getBean(cls);
+                    childBean = child.getBean(clazz);
                 } catch (Exception e) {
-                    try { childBean = child.getBean(fqcn); } catch (Exception ignored) {}
+                    try { childBean = child.getBean(fullyQualifiedClassName); } catch (Exception ignored) {}
                 }
                 if (childBean == null) continue;
 
                 // pick bean name (avoid collisions)
-                String beanName = Introspector.decapitalize(cls.getSimpleName());
+                String beanName = Introspector.decapitalize(clazz.getSimpleName());
                 if (beanFactory.containsBeanDefinition(beanName) || beanFactory.containsSingleton(beanName)) {
                     beanName = beanName + "-" + UUID.randomUUID();
                 }
 
-                if (cls.isInterface()) {
+                if (clazz.isInterface()) {
                     Object finalChildBean = childBean;
-                    Object proxy = Proxy.newProxyInstance(parentCl, new Class[]{cls}, (proxyObj, method, args) -> {
+                    Object proxy = Proxy.newProxyInstance(parentCl, new Class[]{clazz}, (proxyObj, method, args) -> {
                         try {
                             Method implMethod = finalChildBean.getClass().getMethod(method.getName(), method.getParameterTypes());
                             implMethod.setAccessible(true);
@@ -140,25 +140,25 @@ public class FeatureManager implements ApplicationListener<ContextClosedEvent> {
                         }
                     });
 
-                    var def = new org.springframework.beans.factory.support.RootBeanDefinition(cls);
+                    var def = new org.springframework.beans.factory.support.RootBeanDefinition(clazz);
                     def.setInstanceSupplier(() -> proxy);
                     beanFactory.registerBeanDefinition(beanName, def);
-                    log.info("Registered interface-proxy bean definition {} -> {}", fqcn, beanName);
+                    log.info("Registered interface-proxy bean definition {} -> {}", fullyQualifiedClassName, beanName);
 
                 } else {
                     // Concrete class: register a bean definition with an instance supplier returning the child instance
-                    var def = new org.springframework.beans.factory.support.RootBeanDefinition(cls);
-                    Object finalChildBean1 = childBean;
-                    def.setInstanceSupplier(() -> finalChildBean1);
-                    beanFactory.registerBeanDefinition(beanName, def);
-                    log.info("Registered concrete bean definition {} -> {}", fqcn, beanName);
+                    var beanDefinition = new org.springframework.beans.factory.support.RootBeanDefinition(clazz);
+                    Object finalChildBean = childBean;
+                    beanDefinition.setInstanceSupplier(() -> finalChildBean);
+                    beanFactory.registerBeanDefinition(beanName, beanDefinition);
+                    log.info("Registered concrete bean definition {} -> {}", fullyQualifiedClassName, beanName);
                 }
 
             } catch (ClassNotFoundException cnf) {
                 // interface/class not visible to parent classloader -> cannot create a bean definition; skip
-                log.debug("Class {} not visible to parent classloader, skipping exposure", fqcn);
+                log.debug("Class {} not visible to parent classloader, skipping exposure", fullyQualifiedClassName);
             } catch (Exception e) {
-                log.warn("Failed to expose bean {}: {}", fqcn, e.getMessage());
+                log.warn("Failed to expose bean {}: {}", fullyQualifiedClassName, e.getMessage());
             }
         }
     }
@@ -178,12 +178,12 @@ public class FeatureManager implements ApplicationListener<ContextClosedEvent> {
 
         // register explicit bean classes by name (if any)
         if (beanClassNames != null && !beanClassNames.isEmpty() && !scannedPackages) {
-            for (String fqcn : beanClassNames) {
+            for (String fullyQualifiedClassName : beanClassNames) {
                 try {
-                    Class<?> beanClass = Class.forName(fqcn, true, featureLoader);
+                    Class<?> beanClass = Class.forName(fullyQualifiedClassName, true, featureLoader);
                     child.registerBean(beanClass);
                 } catch (ClassNotFoundException e) {
-                    log.warn("Bean class {} not found on feature loader: {}", fqcn, e.getMessage());
+                    log.warn("Bean class {} not found on feature loader: {}", fullyQualifiedClassName, e.getMessage());
                 }
             }
         }
@@ -215,9 +215,9 @@ public class FeatureManager implements ApplicationListener<ContextClosedEvent> {
         return s.replaceAll("[^A-Za-z0-9_]", "");
     }
 
-    private static List<String> readStringArrayField(Class<?> cls, String name) {
+    private static List<String> readStringArrayField(Class<?> clazz, String name) {
         try {
-            Field f = cls.getField(name);
+            Field f = clazz.getField(name);
             Object v = f.get(null);
             if (v instanceof String[] arr) return Arrays.asList(arr);
             return Collections.emptyList();

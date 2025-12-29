@@ -3,7 +3,7 @@ package com.aajumaharjan.pluginloader.processor;
 import java.util.Set;
 
 class FeatureNameResolver {
-    String deriveFeatureName(String repoUrl, String pkgHint, Set<String> beanClasses) {
+    public String deriveFeatureName(String repoUrl, String pkgHint, Set<String> beanClasses) {
         if (pkgHint != null && !pkgHint.isBlank()) {
             String[] parts = pkgHint.split("\\.");
             return capitalize(parts[parts.length - 1]);

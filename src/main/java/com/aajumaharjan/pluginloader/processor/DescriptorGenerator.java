@@ -11,20 +11,20 @@ import java.util.Set;
 class DescriptorGenerator {
     private static final String DESCRIPTOR_PACKAGE = "generated";
 
-    String descriptorFqcn(String featureName) {
+    public String getDescriptorName(String featureName) {
         return DESCRIPTOR_PACKAGE + "." + featureName + "Descriptor";
     }
 
-    void writeDescriptor(String featureName,
+    public void writeDescriptor(String featureName,
                          Set<String> packages,
                          Set<String> beanClasses,
                          String jarPathForDescriptor,
                          ProcessingEnvironment processingEnv,
                          Messager messager) {
         String className = featureName + "Descriptor";
-        String fqcn = DESCRIPTOR_PACKAGE + "." + className;
+        String fullyQualifiedClassName = DESCRIPTOR_PACKAGE + "." + className;
         try {
-            JavaFileObject builderFile = processingEnv.getFiler().createSourceFile(fqcn);
+            JavaFileObject builderFile = processingEnv.getFiler().createSourceFile(fullyQualifiedClassName);
             try (Writer writer = builderFile.openWriter()) {
                 writer.write("package " + DESCRIPTOR_PACKAGE + ";\n\n");
                 writer.write("public final class " + className + " {\n");
@@ -45,9 +45,9 @@ class DescriptorGenerator {
                 writer.write("    private " + className + "(){}\n");
                 writer.write("}\n");
             }
-            messager.printMessage(Diagnostic.Kind.NOTE, "Generated " + fqcn);
+            messager.printMessage(Diagnostic.Kind.NOTE, "Generated " + fullyQualifiedClassName);
         } catch (IOException ioe) {
-            messager.printMessage(Diagnostic.Kind.ERROR, "Failed to write descriptor " + fqcn + ": " + ioe);
+            messager.printMessage(Diagnostic.Kind.ERROR, "Failed to write descriptor " + fullyQualifiedClassName + ": " + ioe);
         }
     }
 

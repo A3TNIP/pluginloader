@@ -11,7 +11,7 @@ import java.util.Comparator;
 
 class RepositoryManager {
 
-    Path cloneRepository(FeatureRequest feature, Messager messager) {
+    public Path cloneRepository(FeatureRequest feature, Messager messager) {
         try {
             messager.printMessage(Diagnostic.Kind.NOTE, "Cloning feature from " + feature.repository());
             Path tempDir = Files.createTempDirectory("feature-");
@@ -28,7 +28,7 @@ class RepositoryManager {
         }
     }
 
-    void cleanup(Path directory, Messager messager) {
+    public void cleanup(Path directory, Messager messager) {
         try {
             Files.walk(directory)
                     .sorted(Comparator.reverseOrder())

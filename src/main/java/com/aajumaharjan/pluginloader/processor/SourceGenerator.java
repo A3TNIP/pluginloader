@@ -22,7 +22,7 @@ class SourceGenerator {
     private static final Pattern PACKAGE_PATTERN = Pattern.compile("package\\s+([\\w\\.]+)\\s*;");
     private static final Pattern CLASS_PATTERN = Pattern.compile("\\b(class|interface|enum)\\s+([A-Za-z_][A-Za-z0-9_]*)\\b");
 
-    ScanResult generateSources(Path srcRoot,
+    public ScanResult generateSources(Path srcRoot,
                                Set<String> configuredPackages,
                                ProcessingEnvironment processingEnv,
                                Messager messager) {
@@ -59,26 +59,26 @@ class SourceGenerator {
             String className = extractGroup(CLASS_PATTERN, content, 2);
             if (className == null) return;
 
-            String fqcn = (pkg != null ? pkg + "." + className : className);
-            beanClasses.add(fqcn);
+            String fullyQualifiedClassName = (pkg != null ? pkg + "." + className : className);
+            beanClasses.add(fullyQualifiedClassName);
             if (pkg != null) packages.add(pkg);
 
-            writeGeneratedSource(processingEnv.getFiler(), fqcn, content, messager);
+            writeGeneratedSource(processingEnv.getFiler(), fullyQualifiedClassName, content, messager);
         } catch (IOException ignored) {
         }
     }
 
-    private void writeGeneratedSource(Filer filer, String fqcn, String content, Messager messager) {
+    private void writeGeneratedSource(Filer filer, String fullyQualifiedClassName, String content, Messager messager) {
         try {
-            JavaFileObject src = filer.createSourceFile(fqcn);
+            JavaFileObject src = filer.createSourceFile(fullyQualifiedClassName);
             try (Writer w = src.openWriter()) {
                 w.write(content);
             }
-            messager.printMessage(Diagnostic.Kind.NOTE, "Created generated source for " + fqcn);
+            messager.printMessage(Diagnostic.Kind.NOTE, "Created generated source for " + fullyQualifiedClassName);
         } catch (FilerException fe) {
-            messager.printMessage(Diagnostic.Kind.NOTE, "Source already generated for " + fqcn + " : " + fe.getMessage());
+            messager.printMessage(Diagnostic.Kind.NOTE, "Source already generated for " + fullyQualifiedClassName + " : " + fe.getMessage());
         } catch (Exception e) {
-            messager.printMessage(Diagnostic.Kind.NOTE, "Failed to generate source for " + fqcn + ": " + e);
+            messager.printMessage(Diagnostic.Kind.NOTE, "Failed to generate source for " + fullyQualifiedClassName + ": " + e);
         }
     }
 
