@@ -3,6 +3,8 @@ package com.aajumaharjan.pluginloader;
 import com.aajumaharjan.pluginloader.model.FeatureConfig;
 import com.aajumaharjan.pluginloader.config.PluginLoaderProperties;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.support.DefaultListableBeanFactory;
+import org.springframework.beans.factory.support.RootBeanDefinition;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.AnnotationConfigUtils;
@@ -106,7 +108,7 @@ public class FeatureManager implements ApplicationListener<ContextClosedEvent> {
         if (beanClassNames == null || beanClassNames.isEmpty()) return;
         ClassLoader parentCl = parent.getClassLoader();
 
-        var beanFactory = (org.springframework.beans.factory.support.DefaultListableBeanFactory) parent.getBeanFactory();
+        var beanFactory = (DefaultListableBeanFactory) parent.getBeanFactory();
 
         for (String fullyQualifiedClassName : beanClassNames) {
             try {
@@ -140,14 +142,14 @@ public class FeatureManager implements ApplicationListener<ContextClosedEvent> {
                         }
                     });
 
-                    var def = new org.springframework.beans.factory.support.RootBeanDefinition(clazz);
+                    var def = new RootBeanDefinition(clazz);
                     def.setInstanceSupplier(() -> proxy);
                     beanFactory.registerBeanDefinition(beanName, def);
                     log.info("Registered interface-proxy bean definition {} -> {}", fullyQualifiedClassName, beanName);
 
                 } else {
                     // Concrete class: register a bean definition with an instance supplier returning the child instance
-                    var beanDefinition = new org.springframework.beans.factory.support.RootBeanDefinition(clazz);
+                    var beanDefinition = new RootBeanDefinition(clazz);
                     Object finalChildBean = childBean;
                     beanDefinition.setInstanceSupplier(() -> finalChildBean);
                     beanFactory.registerBeanDefinition(beanName, beanDefinition);

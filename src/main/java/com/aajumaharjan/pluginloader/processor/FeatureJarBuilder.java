@@ -2,10 +2,13 @@ package com.aajumaharjan.pluginloader.processor;
 
 import javax.annotation.processing.Messager;
 import javax.tools.Diagnostic;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 class FeatureJarBuilder {
@@ -15,15 +18,15 @@ class FeatureJarBuilder {
             ProcessBuilder pb = createProcessBuilder(repoDir);
             Process p = pb.start();
 
-            try (var isr = new java.io.InputStreamReader(p.getInputStream());
-                 var br = new java.io.BufferedReader(isr)) {
+            try (var isr = new InputStreamReader(p.getInputStream());
+                 var br = new BufferedReader(isr)) {
                 String line;
                 while ((line = br.readLine()) != null) {
                     messager.printMessage(Diagnostic.Kind.NOTE, "[mvn] " + line);
                 }
             }
 
-            boolean finished = p.waitFor(600, java.util.concurrent.TimeUnit.SECONDS);
+            boolean finished = p.waitFor(600, TimeUnit.SECONDS);
             if (!finished || p.exitValue() != 0) {
                 messager.printMessage(Diagnostic.Kind.NOTE, "Maven build failed or timed out for " + repoDir);
                 return Optional.empty();
